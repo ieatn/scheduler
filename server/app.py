@@ -6,6 +6,8 @@ from spacy.lang.en import English
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+from flask import Flask, jsonify, request
+from flask_cors import CORS  # Add this import
 
 # Load the English language model for spaCy
 nlp = spacy.load("en_core_web_sm")
@@ -41,6 +43,13 @@ class AISchedulerApp:
             time_match = re.search(time_pattern, text, re.IGNORECASE)
             if time_match:
                 time = time_match.group()
+                # Ensure time is in the correct format
+                if len(time) == 4:  # e.g., '8pm'
+                    time = f"{time[0]}:00{time[1:]}"  # Convert to '8:00pm'
+                elif len(time) == 5:  # e.g., '10pm'
+                    time = f"{time[:2]}:00{time[2:]}"  # Convert to '10:00pm'
+                elif len(time) == 7:  # e.g., '8:30pm'
+                    time = time  # Already in the correct format
 
         return activity.strip(), time
 
@@ -79,8 +88,11 @@ class AISchedulerApp:
                         print(f"- {similar_user} plans to {similar_activity} at {similar_time} (Similarity: {similarity:.2f})")
             else:
                 print("No other users have similar plans at the moment.")
+        
+            return {"activity": activity, "time": time, "similar_plans": similar_plans}  # Return results
         else:
             print("I'm sorry, I couldn't understand your plan. Please try again with a clearer description of your activity and time.")
+            return {"error": "Could not understand the plan."}  # Return error message
 
 # Example usage
 scheduler = AISchedulerApp()
@@ -90,9 +102,30 @@ scheduler.process_input("Alice", "I'm going to hit the gym around 7:30pm")
 scheduler.process_input("Bob", "I plan on working out at the fitness center at 8:15pm")
 scheduler.process_input("Charlie", "I'll be watching a movie at the cinema at 8:00pm")
 
-# Test the app
-while True:
-    user = input("Enter your name: ")
-    plan = input("What's your plan? ")
-    scheduler.process_input(user, plan)
-    print()
+# # Test the app
+# while True:
+#     user = input("Enter your name: ")
+#     plan = input("What's your plan? ")
+#     scheduler.process_input(user, plan)
+#     print()
+
+
+app = Flask(__name__)
+CORS(app)  # Enable CORS for all routes
+
+@app.route('/')
+def hello_world():
+    return jsonify({"message": "Hello, World!"})
+
+@app.route('/schedule', methods=['POST'])
+def schedule():
+    data = request.get_json()
+    user = data.get('user')  # Extract user from request
+    plan = data.get('plan')  # Extract plan from request
+    result = scheduler.process_input(user, plan)  # Process the input and get results
+    return jsonify(result), 200  # Return the result as JSON
+
+
+    
+if __name__ == '__main__':
+    app.run(debug=True)

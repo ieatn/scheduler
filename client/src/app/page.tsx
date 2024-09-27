@@ -1,23 +1,37 @@
 'use client'
 import { useState } from 'react';
-import Image from "next/image";
+import axios from 'axios'; // Add this import
 
 // Simulated database of events
 const events = [
-  { id: 1, person: 'Person A', activity: 'gym', time: '8pm' }
+  { id: 1, person: 'Person A', activity: 'gym', time: '8:00pm' }
 ];
 
 export default function Home() {
   const [userInput, setUserInput] = useState('');
   const [message, setMessage] = useState('');
   const [showModal, setShowModal] = useState(false);
+  const [serverResponse, setServerResponse] = useState(null); // New state for server response
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setUserInput('');
+    
+    // Call the Flask server
+    try {
+        const response = await axios.post('http://localhost:5000/schedule', { 
+            user: 'User', // Replace with actual user identifier
+            plan: userInput // Send the user input as the plan
+        });
+        console.log(response.data); // Log the response from the server
+        setServerResponse(response.data); // Store the server response
+        setShowModal(true); // Show the modal after receiving response
+    } catch (error) {
+        console.error("Error calling the Flask server:", error);
+    }
+
     setMessage(`Your event has been added. We'll notify you if someone wants to join!`);
     await new Promise(resolve => setTimeout(resolve, 2000));
-    setShowModal(true);
   };
 
   const handleConfirm = () => {
@@ -30,23 +44,8 @@ export default function Home() {
     setShowModal(false);
   };
 
-  const parseUserInput = (input) => {
-    // This is a very basic parser. In a real app, you'd want something more robust.
-    const words = input.toLowerCase().split(' ');
-    return {
-      activity: words[words.indexOf('to') + 1],
-      time: words[words.indexOf('at') + 1]
-    };
-  };
-
-  const findMatchingEvent = (userEvent) => {
-    return events.find(event => 
-      event.activity === userEvent.activity && event.time === userEvent.time
-    );
-  };
-
   const fillSampleText = () => {
-    setUserInput('I am going to the gym at 8pm');
+    setUserInput('I am going to the gym at 8:00pm');
   };
 
   return (
@@ -76,7 +75,11 @@ export default function Home() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
           <div className="bg-white p-6 rounded-lg shadow-xl">
             <h2 className="text-xl font-bold mb-4">Join Gym Session?</h2>
-            <p className="mb-4">{`${events[0].person} is also planning on going to the gym at ${events[0].time}. Would you like to join?`}</p>
+            {serverResponse && serverResponse.similar_plans.length > 0 ? (
+              <p className="mb-4">{`${serverResponse.similar_plans[0][0]} is also planning on going to the gym at ${serverResponse.similar_plans[0][2]}. Would you like to join?`}</p>
+            ) : (
+              <p className="mb-4">No similar plans found. Would you like to proceed?</p>
+            )}
             <div className="flex justify-end">
               <button
                 onClick={handleDecline}
